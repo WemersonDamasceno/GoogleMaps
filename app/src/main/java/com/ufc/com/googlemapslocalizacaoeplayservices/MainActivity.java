@@ -1,11 +1,15 @@
 package com.ufc.com.googlemapslocalizacaoeplayservices;
 
 import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
+import androidx.core.content.ContextCompat;
 
 import android.Manifest;
+import android.app.Activity;
 import android.content.DialogInterface;
+import android.content.Intent;
 import android.content.IntentSender;
 import android.content.pm.PackageManager;
 import android.location.Location;
@@ -30,6 +34,9 @@ import com.google.android.gms.tasks.OnSuccessListener;
 
 public class MainActivity extends AppCompatActivity {
     FusedLocationProviderClient client;
+    LocationRequest locationRequest;
+    private static final int REQUEST_CHECK_SETTINGS = 613;
+    LocationCallback locationCallback;
 
 
     @Override
@@ -41,6 +48,8 @@ public class MainActivity extends AppCompatActivity {
         client = LocationServices.getFusedLocationProviderClient(this);
 
 
+        checarPermissaoClient();
+
 
 
 
@@ -49,38 +58,69 @@ public class MainActivity extends AppCompatActivity {
 
     }
 
+    private void checarPermissaoClient() {
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION)
+                != PackageManager.PERMISSION_GRANTED) {
+            if (ActivityCompat.shouldShowRequestPermissionRationale(this,
+                    Manifest.permission.ACCESS_FINE_LOCATION)) {
+            } else {
+                ActivityCompat.requestPermissions(this,
+                        new String[]{Manifest.permission.ACCESS_FINE_LOCATION},
+                        0);
+            }
+        }
+    }
+    //O código abaixo faz o tratamento da resposta do usuário
+    @Override
+    public void onRequestPermissionsResult(int requestCode, String permissions[], int[] grantResults) {
+        if (requestCode == 0) {
+            if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                // A permissão foi concedida. Pode continuar
+                Toast.makeText(this, "Sucess | Permissão concedida", Toast.LENGTH_SHORT).show();
+            } else {
+                Toast.makeText(this, "Fail | Aceite a permissão para usar o app", Toast.LENGTH_LONG).show();
+                //O programa necessita disso
+                finish();
+                // A permissão foi negada. Precisa ver o que deve ser desabilitado
+            }
+            return;
+        }
+    }
 
 
     @Override
     protected void onResume() {
+        //Question of location request
+        createLocationRequest();
+        askForLocationChange();
+
         //saber se o google services está atualizado
-        int erro = GoogleApiAvailability.getInstance().isGooglePlayServicesAvailable(this);
-        if((erro == ConnectionResult.SERVICE_MISSING)
-                || (erro == ConnectionResult.SERVICE_VERSION_UPDATE_REQUIRED)
-                || (erro == ConnectionResult.SERVICE_DISABLED)) {
+        int gPlayServices = GoogleApiAvailability.getInstance().isGooglePlayServicesAvailable(this);
+        if((gPlayServices == ConnectionResult.SERVICE_MISSING)
+                || (gPlayServices == ConnectionResult.SERVICE_VERSION_UPDATE_REQUIRED)
+                || (gPlayServices == ConnectionResult.SERVICE_DISABLED)) {
             Toast.makeText(this, "Fail | Baixe/ Ative/ Atualize o Google Play Services", Toast.LENGTH_SHORT).show();
             GoogleApiAvailability.getInstance()
-                    .getErrorDialog(this, erro, 0, new DialogInterface.OnCancelListener() {
+                    .getErrorDialog(this, gPlayServices, 0, new DialogInterface.OnCancelListener() {
                 @Override
                 public void onCancel(DialogInterface dialog) {
                     //matar a activity, pois o programa nao pode rodar sem o google play
                     finish();
                 }
             }).show();
-        }else if(erro == ConnectionResult.SUCCESS){
+        }
+        if(gPlayServices == ConnectionResult.SUCCESS){
             //Toast.makeText(this, "Sucess | Google services", Toast.LENGTH_SHORT).show();
         }
+        //Checar a permissão do usuario
 
-        if(ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_LOCATION_EXTRA_COMMANDS)
-                != PackageManager.PERMISSION_DENIED){
-            return;
-        }
+
 
         //Pegando a ultima localização
         client.getLastLocation().addOnSuccessListener(new OnSuccessListener<Location>() {
             @Override
             public void onSuccess(Location location) {
-                if(location != null){
+                if(location == null){
                     Log.i("Sucess_Location","Lat "+location.getLatitude()+" Long "+location.getLongitude());
                 }else {
                     Log.i("Erro_Location", "Location is Null");
@@ -89,20 +129,36 @@ public class MainActivity extends AppCompatActivity {
         }).addOnFailureListener(new OnFailureListener() {
             @Override
             public void onFailure(@NonNull Exception e) {
-
+                Log.i("teste","Falha ao pegar a localização"+e);
             }
         });
 
-        //Pegar posicao mais precisa com o FINE
-        final LocationRequest locationRequest = LocationRequest.create();
-        //Intervalo de vezes que o app vai procurar a loxalização do usuario defini 15 segundos
-        locationRequest.setInterval(15 * 1000);
-        //Localizacao vindas de outros App's
-        locationRequest.setFastestInterval(5 * 1000);
-        //Prioridade de precisao e bateria
-        locationRequest.setPriority(LocationRequest.PRIORITY_BALANCED_POWER_ACCURACY);
 
 
+        client.requestLocationUpdates(locationRequest, locationCallback, null);
+
+
+        super.onResume();
+    }
+
+
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        if (requestCode == REQUEST_CHECK_SETTINGS) {
+            switch (resultCode) {
+                case Activity.RESULT_OK:
+                    Toast.makeText(this, "Location is now on", Toast.LENGTH_SHORT).show();
+                    break;
+                case Activity.RESULT_CANCELED:
+                    Toast.makeText(this, "You Have Not Accepted", Toast.LENGTH_SHORT).show();
+                    break;
+            }
+        }
+        super.onActivityResult(requestCode, resultCode, data);
+    }
+
+    private void askForLocationChange() {
         LocationSettingsRequest.Builder builder = new LocationSettingsRequest.Builder()
                 .addLocationRequest(locationRequest);
 
@@ -131,18 +187,17 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
-        LocationCallback locationCallback = new LocationCallback(){
+       locationCallback = new LocationCallback(){
             @Override
             public void onLocationResult(LocationResult locationResult) {
-                if(locationRequest == null){
+                if(locationResult == null){
                     Log.i("teste2", "Location is null");
                     return;
                 }
                 for ( Location location : locationResult.getLocations()) {
-                    Log.i("teste2", location.getLatitude()+"");
+                    Log.i("teste2", location.getLatitude()+" essa é a Latitude");
                 }
             }
-
             @Override
             public void onLocationAvailability(LocationAvailability locationAvailability) {
                 //se a localização esta disponivel ou nao
@@ -150,9 +205,17 @@ public class MainActivity extends AppCompatActivity {
                 super.onLocationAvailability(locationAvailability);
             }
         };
-        client.requestLocationUpdates(locationRequest, locationCallback, null);
 
+    }
 
-        super.onResume();
+    private void createLocationRequest() {
+        //Pegar posicao mais precisa com o FINE
+        locationRequest = LocationRequest.create();
+        //Intervalo de vezes que o app vai procurar a loxalização do usuario defini 15 segundos
+        locationRequest.setInterval(15 * 1000);
+        //Localizacao vindas de outros App's
+        locationRequest.setFastestInterval(5 * 1000);
+        //Prioridade de precisao e bateria
+        locationRequest.setPriority(LocationRequest.PRIORITY_BALANCED_POWER_ACCURACY);
     }
 }
