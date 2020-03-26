@@ -12,9 +12,13 @@ import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.IntentSender;
 import android.content.pm.PackageManager;
+import android.location.Geocoder;
 import android.location.Location;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.ResultReceiver;
 import android.util.Log;
+import android.widget.TextView;
 import android.widget.Toast;
 
 import com.google.android.gms.common.ConnectionResult;
@@ -35,9 +39,9 @@ import com.google.android.gms.tasks.OnSuccessListener;
 public class MainActivity extends AppCompatActivity {
     FusedLocationProviderClient client;
     LocationRequest locationRequest;
-    private static final int REQUEST_CHECK_SETTINGS = 613;
     LocationCallback locationCallback;
-
+    ResultReceiver resultReceiver;
+    TextView textView;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -46,6 +50,8 @@ public class MainActivity extends AppCompatActivity {
 
         //PEGAR EVENTOS DA LOCALIZAÇÃO DO CLIENTE
         client = LocationServices.getFusedLocationProviderClient(this);
+        resultReceiver = new AddressResultReceiver(null);
+        textView = findViewById(R.id.tvTexto);
 
 
         checarPermissaoClient();
@@ -58,6 +64,7 @@ public class MainActivity extends AppCompatActivity {
 
     }
 
+    //Faz a pergunta para o usuario da PERMISSAO
     private void checarPermissaoClient() {
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION)
                 != PackageManager.PERMISSION_GRANTED) {
@@ -70,7 +77,7 @@ public class MainActivity extends AppCompatActivity {
             }
         }
     }
-    //O código abaixo faz o tratamento da resposta do usuário
+    //O código abaixo faz o tratamento da resposta do usuário sobre a PERMISSAO
     @Override
     public void onRequestPermissionsResult(int requestCode, String permissions[], int[] grantResults) {
         if (requestCode == 0) {
@@ -120,7 +127,7 @@ public class MainActivity extends AppCompatActivity {
         client.getLastLocation().addOnSuccessListener(new OnSuccessListener<Location>() {
             @Override
             public void onSuccess(Location location) {
-                if(location == null){
+                if(location != null){
                     Log.i("Sucess_Location","Lat "+location.getLatitude()+" Long "+location.getLongitude());
                 }else {
                     Log.i("Erro_Location", "Location is Null");
@@ -141,28 +148,9 @@ public class MainActivity extends AppCompatActivity {
         super.onResume();
     }
 
-
-
-    @Override
-    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
-        if (requestCode == REQUEST_CHECK_SETTINGS) {
-            switch (resultCode) {
-                case Activity.RESULT_OK:
-                    Toast.makeText(this, "Location is now on", Toast.LENGTH_SHORT).show();
-                    break;
-                case Activity.RESULT_CANCELED:
-                    Toast.makeText(this, "You Have Not Accepted", Toast.LENGTH_SHORT).show();
-                    break;
-            }
-        }
-        super.onActivityResult(requestCode, resultCode, data);
-    }
-
     private void askForLocationChange() {
         LocationSettingsRequest.Builder builder = new LocationSettingsRequest.Builder()
                 .addLocationRequest(locationRequest);
-
-
         SettingsClient settingsClient = LocationServices.getSettingsClient(this);
         settingsClient.checkLocationSettings(builder.build())
                 .addOnSuccessListener(new OnSuccessListener<LocationSettingsResponse>() {
@@ -194,8 +182,14 @@ public class MainActivity extends AppCompatActivity {
                     Log.i("teste2", "Location is null");
                     return;
                 }
+                //tenho as localizações que estão sendo pegas a cada X segundos
                 for ( Location location : locationResult.getLocations()) {
                     Log.i("teste2", location.getLatitude()+" essa é a Latitude");
+                    if(!Geocoder.isPresent()){
+                        return;
+                    }else {
+                        starIntentService(location);
+                    }
                 }
             }
             @Override
@@ -207,6 +201,13 @@ public class MainActivity extends AppCompatActivity {
         };
 
     }
+    //iniciar o servico
+    private void starIntentService(Location location) {
+        Intent intent = new Intent(this, FetchAddressService.class);
+        intent.putExtra(Constants.RECEIVER, resultReceiver);
+        intent.putExtra(Constants.LOCATION_DATA_EXTRA, location);
+        startService(intent);
+    }
 
     private void createLocationRequest() {
         //Pegar posicao mais precisa com o FINE
@@ -217,5 +218,32 @@ public class MainActivity extends AppCompatActivity {
         locationRequest.setFastestInterval(5 * 1000);
         //Prioridade de precisao e bateria
         locationRequest.setPriority(LocationRequest.PRIORITY_BALANCED_POWER_ACCURACY);
+    }
+
+
+    private class AddressResultReceiver extends ResultReceiver{
+        public AddressResultReceiver(Handler handler) {
+            super(handler);
+        }
+        //Aqui é onde recebemos os valores do FetchAddress
+        @Override
+        protected void onReceiveResult(int resultCode, Bundle resultData) {
+            if (resultData == null){
+                finish();
+            }
+            final String enderecoSaida = resultData.getString(Constants.RESULT_DATA_KEY);
+
+            if(enderecoSaida != null){
+                runOnUiThread(new Runnable() {
+                    @Override
+                    public void run() {
+                        //agora posso colocar esse resultado na view
+                        textView.setText(enderecoSaida);
+                       Toast.makeText(MainActivity.this, enderecoSaida, Toast.LENGTH_LONG).show();
+                    }
+                });
+            }
+
+        }
     }
 }
