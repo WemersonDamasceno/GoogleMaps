@@ -1,13 +1,6 @@
 package com.ufc.com.googlemapslocalizacaoeplayservices;
 
-import androidx.annotation.NonNull;
-import androidx.annotation.Nullable;
-import androidx.appcompat.app.AppCompatActivity;
-import androidx.core.app.ActivityCompat;
-import androidx.core.content.ContextCompat;
-
 import android.Manifest;
-import android.app.Activity;
 import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.IntentSender;
@@ -20,6 +13,11 @@ import android.os.ResultReceiver;
 import android.util.Log;
 import android.widget.TextView;
 import android.widget.Toast;
+
+import androidx.annotation.NonNull;
+import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.app.ActivityCompat;
+import androidx.core.content.ContextCompat;
 
 import com.google.android.gms.common.ConnectionResult;
 import com.google.android.gms.common.GoogleApiAvailability;
@@ -93,8 +91,6 @@ public class MainActivity extends AppCompatActivity {
             return;
         }
     }
-
-
     @Override
     protected void onResume() {
         //Question of location request
@@ -109,20 +105,16 @@ public class MainActivity extends AppCompatActivity {
             Toast.makeText(this, "Fail | Baixe/ Ative/ Atualize o Google Play Services", Toast.LENGTH_SHORT).show();
             GoogleApiAvailability.getInstance()
                     .getErrorDialog(this, gPlayServices, 0, new DialogInterface.OnCancelListener() {
-                @Override
-                public void onCancel(DialogInterface dialog) {
-                    //matar a activity, pois o programa nao pode rodar sem o google play
-                    finish();
-                }
-            }).show();
+                        @Override
+                        public void onCancel(DialogInterface dialog) {
+                            //matar a activity, pois o programa nao pode rodar sem o google play
+                            finish();
+                        }
+                    }).show();
         }
         if(gPlayServices == ConnectionResult.SUCCESS){
             //Toast.makeText(this, "Sucess | Google services", Toast.LENGTH_SHORT).show();
         }
-        //Checar a permissão do usuario
-
-
-
         //Pegando a ultima localização
         client.getLastLocation().addOnSuccessListener(new OnSuccessListener<Location>() {
             @Override
@@ -140,14 +132,11 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
-
-
         client.requestLocationUpdates(locationRequest, locationCallback, null);
 
 
         super.onResume();
     }
-
     private void askForLocationChange() {
         LocationSettingsRequest.Builder builder = new LocationSettingsRequest.Builder()
                 .addLocationRequest(locationRequest);
@@ -208,7 +197,6 @@ public class MainActivity extends AppCompatActivity {
         intent.putExtra(Constants.LOCATION_DATA_EXTRA, location);
         startService(intent);
     }
-
     private void createLocationRequest() {
         //Pegar posicao mais precisa com o FINE
         locationRequest = LocationRequest.create();
@@ -219,8 +207,6 @@ public class MainActivity extends AppCompatActivity {
         //Prioridade de precisao e bateria
         locationRequest.setPriority(LocationRequest.PRIORITY_BALANCED_POWER_ACCURACY);
     }
-
-
     private class AddressResultReceiver extends ResultReceiver{
         public AddressResultReceiver(Handler handler) {
             super(handler);
